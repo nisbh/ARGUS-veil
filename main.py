@@ -38,30 +38,30 @@ def main() -> None:
         print("No devices in database. Run argus-recon first.")
         sys.exit(1)
 
-    print("Known devices:")
-    for index, device in enumerate(devices, start=1):
-        vendor = device.get("vendor") or "Unknown"
-        print(f"{index}. {device['ip']}  {device['mac']}  {vendor}")
-
     target = None
-    while target is None:
-        selection = input("Select target by number: ").strip()
-        try:
-            selection_index = int(selection)
-        except ValueError:
-            print("Invalid selection. Please enter a number from the list.")
-            continue
-
-        if selection_index < 1 or selection_index > len(devices):
-            print("Invalid selection. Please enter a number from the list.")
-            continue
-
-        target = devices[selection_index - 1]
-
-    session_id = None
     gateway_mac = None
+    session_id = None
 
     try:
+        print("Known devices:")
+        for index, device in enumerate(devices, start=1):
+            vendor = device.get("vendor") or "Unknown"
+            print(f"{index}. {device['ip']}  {device['mac']}  {vendor}")
+
+        while target is None:
+            selection = input("Select target by number: ").strip()
+            try:
+                selection_index = int(selection)
+            except ValueError:
+                print("Invalid selection. Please enter a number from the list.")
+                continue
+
+            if selection_index < 1 or selection_index > len(devices):
+                print("Invalid selection. Please enter a number from the list.")
+                continue
+
+            target = devices[selection_index - 1]
+
         gateway_mac = get_gateway_mac(config["gateway_ip"], config["interface"])
         attacker_mac = get_attacker_mac(config["interface"])
 
@@ -88,13 +88,7 @@ def main() -> None:
         print(f"\nUnexpected error: {error}")
 
     finally:
-        if gateway_mac is None:
-            try:
-                gateway_mac = get_gateway_mac(config["gateway_ip"], config["interface"])
-            except Exception as error:
-                print(f"Warning: unable to resolve gateway MAC for restore: {error}")
-
-        if gateway_mac is not None:
+        if target is not None and gateway_mac is not None:
             try:
                 restore_arp(
                     interface=config["interface"],
@@ -105,8 +99,6 @@ def main() -> None:
                 )
             except Exception as error:
                 print(f"Warning: ARP restore failed: {error}")
-        else:
-            print("Warning: ARP restore skipped because gateway MAC is unavailable.")
 
         disable_forwarding()
         if session_id is not None:
