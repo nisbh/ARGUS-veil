@@ -1,2 +1,2 @@
-# scapy is used for ARP packet construction and sending.
-scapy
+# scapy is used for ARP packet construction, sending, and interface MAC lookup.
+scapy>=2.5.0
